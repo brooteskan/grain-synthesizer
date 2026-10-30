@@ -1,0 +1,7 @@
+Grain Synthesizer includes granular DSP and tests extracted from Wozzits Engine.
+Copyright (c) 2026 Wozzits Engine contributors.
+MIT license: licenses/wozzits-MIT.txt.
+
+Test dependencies are pinned submodules and retain their own licenses:
+GoogleTest (BSD-3-Clause) and miniaudio (public domain or MIT No Attribution).
+No source recordings or other audio content are distributed with this package.

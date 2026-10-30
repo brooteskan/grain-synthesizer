@@ -1,0 +1,13 @@
+{
+    "gem_name": "GrainSynthesizer",
+    "version": "0.1.0",
+    "display_name": "Grain Synthesizer",
+    "summary": "Wozzits granular synthesis with realtime parameter control and MiniAudio output.",
+    "type": "Code",
+    "license": "MIT",
+    "license_url": "https://github.com/brooteskan/grain-synthesizer/blob/main/LICENSE",
+    "origin": "https://github.com/brooteskan/grain-synthesizer",
+    "canonical_tags": ["Gem"],
+    "user_tags": ["Audio", "Granular Synthesis", "Procedural Audio"],
+    "dependencies": ["MiniAudio"]
+}
