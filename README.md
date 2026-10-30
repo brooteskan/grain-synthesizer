@@ -96,6 +96,12 @@ MiniAudio data source. See [architecture and limits](docs/Architecture.md) and
 whole-program morphs, background decoding, streaming, occlusion and reverb-zone
 authoring are future work. No audio recordings are included.
 
+O3DE emitters react to asset-ready/error and transform-change notifications;
+they do not subscribe to a frame bus. In O3DE builds with tests enabled,
+`GrainSynthesizer.Tests` exercises startup, loading cancellation, deactivation,
+duplicate source references and spatial updates without dispatching simulation
+frames. Standalone CI also enforces the notification-only component architecture.
+
 See [validation results and limits](docs/Validation.md).
 
 MIT licensed; original Wozzits notices are preserved in `licenses/wozzits-MIT.txt`.

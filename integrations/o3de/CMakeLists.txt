@@ -37,3 +37,12 @@ if(PAL_TRAIT_BUILD_HOST_TOOLS)
 endif()
 o3de_add_variant_dependencies_for_gem_dependencies(GEM_NAME ${gem_name}
     VARIANTS Builders Tools Clients Unified)
+
+if(PAL_TRAIT_BUILD_TESTS_SUPPORTED)
+    ly_add_target(
+        NAME ${gem_name}.Tests ${PAL_TRAIT_TEST_TARGET_TYPE} NAMESPACE Gem
+        FILES_CMAKE grain_synthesizer_tests_files.cmake
+        BUILD_DEPENDENCIES PRIVATE AZ::AzTest AZ::AzFramework Gem::${gem_name}.Static 3rdParty::miniaudio
+    )
+    ly_add_googletest(NAME Gem::${gem_name}.Tests LABELS REQUIRES_tiaf)
+endif()

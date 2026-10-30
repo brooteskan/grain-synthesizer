@@ -8,6 +8,8 @@ target_compile_features(grain_synthesizer_core PUBLIC cxx_std_17)
 set_target_properties(grain_synthesizer_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 if(GRAIN_SYNTHESIZER_BUILD_TESTS)
     enable_testing()
+    add_test(NAME GrainEmitter.EventDrivenArchitecture
+        COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/CheckEventDriven.cmake)
     set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/googletest/CMakeLists.txt")

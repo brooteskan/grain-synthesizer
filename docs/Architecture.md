@@ -25,6 +25,16 @@ emitters or adding background decoding is appropriate before production use.
 Assets, descriptors and callback state are not hot-reloaded during playback.
 Configure/asset/engine failures log an error and leave the emitter silent.
 
+Emitters use asset-ready/error notifications for startup and transform-change
+events for spatial movement. Already-ready sources start immediately. Stops and
+deactivation cancel pending starts and disconnect asset subscriptions; late
+notifications cannot restart playback. Initial spatial position is set before
+starting the sound, then updated only when the entity transform changes. There
+is no frame-bus subscription or polling fallback. Normal asset notifications and
+control requests are consumed on the O3DE main thread, keeping one producer for
+the DSP command ring. With Auto Play disabled, the emitter requests loading and
+playback only on an explicit Play (other engine systems can preload the assets).
+
 The editor component only authors configuration and builds the runtime component;
 it does not open sound sources while editing. A listener is supplied by MiniAudio.
 The Gem needs no engine source patches and no hard-coded checkout paths.

@@ -1,6 +1,7 @@
 #pragma once
+#include <AzCore/Asset/AssetCommon.h>
 #include <AzCore/Component/Component.h>
-#include <AzCore/Component/TickBus.h>
+#include <AzCore/Component/TransformBus.h>
 #include <AzCore/std/smart_ptr/unique_ptr.h>
 #include <AzCore/std/containers/vector.h>
 #include <MiniAudio/SoundAsset.h>
@@ -44,7 +45,7 @@ namespace GrainSynthesizer
 
     class GrainEmitterComponent final
         : public AZ::Component
-        , private AZ::TickBus::Handler
+        , private AZ::Data::AssetBus::MultiHandler
         , private GrainEmitterRequestBus::Handler
     {
     public:
@@ -59,11 +60,17 @@ namespace GrainSynthesizer
         bool Stop() override;
         bool SetParameter(AZ::u32 parameter, float value, float rampSeconds, AZ::u32 sourceIndex) override;
     private:
-        void OnTick(float, AZ::ScriptTimePoint) override;
+        void OnAssetReady(AZ::Data::Asset<AZ::Data::AssetData> asset) override;
+        void OnAssetError(AZ::Data::Asset<AZ::Data::AssetData> asset) override;
+        void TryStartPlayback();
+        void OnWorldTransformChanged(const AZ::Transform& world);
         bool CreateRuntime();
         struct Runtime;
         AZStd::unique_ptr<Runtime> m_runtime;
         GrainEmitterConfig m_config;
+        AZ::TransformChangedEvent::Handler m_transformChangedHandler{
+            [this](const AZ::Transform&, const AZ::Transform& world) { OnWorldTransformChanged(world); }};
+        bool m_active = false;
         bool m_playRequested = false;
     };
 }

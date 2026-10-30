@@ -44,28 +44,59 @@ namespace GrainSynthesizer
     }
     void GrainEmitterComponent::Activate()
     {
+        m_active = true;
         GrainEmitterRequestBus::Handler::BusConnect(GetEntityId());
-        AZ::TickBus::Handler::BusConnect();
-        m_playRequested = m_config.autoPlay;
-        for (auto& asset : m_config.sources) if (asset.GetId().IsValid()) asset.QueueLoad();
+        if (m_config.spatial)
+            AZ::TransformBus::Event(GetEntityId(), &AZ::TransformBus::Events::BindTransformChangedEventHandler,
+                m_transformChangedHandler);
+        if (m_config.autoPlay) Play();
     }
     void GrainEmitterComponent::Deactivate()
     {
-        AZ::TickBus::Handler::BusDisconnect();
-        GrainEmitterRequestBus::Handler::BusDisconnect();
+        m_active = false;
         m_playRequested = false;
+        AZ::Data::AssetBus::MultiHandler::BusDisconnect();
+        m_transformChangedHandler.Disconnect();
+        GrainEmitterRequestBus::Handler::BusDisconnect();
         m_runtime.reset();
     }
     bool GrainEmitterComponent::Play()
     {
+        if (!m_active) return false;
         if (m_runtime) return m_runtime->source.cloud.Start();
+        if (m_config.sources.empty() || m_config.sources.size() > 8)
+        {
+            AZ_Error("GrainSynthesizer", false, "One to eight sources are required");
+            return false;
+        }
+        for (const auto& asset : m_config.sources)
+        {
+            if (!asset.GetId().IsValid() || asset.IsError())
+            {
+                AZ_Error("GrainSynthesizer", false, "A grain source asset is invalid or failed to load");
+                m_playRequested = false;
+                AZ::Data::AssetBus::MultiHandler::BusDisconnect();
+                return false;
+            }
+        }
         m_playRequested = true;
-        for (auto& asset : m_config.sources) if (asset.GetId().IsValid()) asset.QueueLoad();
-        return true; // Accepted; asset loading/decoding can still fail with a log.
+        for (auto& asset : m_config.sources)
+        {
+            if (!asset.IsReady())
+            {
+                // Connecting can synchronously deliver ready/error notifications.
+                AZ::Data::AssetBus::MultiHandler::BusConnect(asset.GetId());
+                if (!m_playRequested) break;
+                if (!asset.IsReady() && !asset.IsLoading()) asset.QueueLoad();
+            }
+        }
+        TryStartPlayback();
+        return m_runtime != nullptr || m_playRequested;
     }
     bool GrainEmitterComponent::Stop()
     {
         m_playRequested = false;
+        AZ::Data::AssetBus::MultiHandler::BusDisconnect();
         return !m_runtime || m_runtime->source.cloud.Stop();
     }
     bool GrainEmitterComponent::SetParameter(AZ::u32 parameter, float value, float seconds, AZ::u32 index)
@@ -73,29 +104,42 @@ namespace GrainSynthesizer
         if (!m_runtime || parameter > 13) return false;
         return m_runtime->source.cloud.SetParameter(static_cast<wz::audio::GrainParam>(parameter), value, seconds, index);
     }
-    void GrainEmitterComponent::OnTick(float, AZ::ScriptTimePoint)
+    void GrainEmitterComponent::OnAssetReady(AZ::Data::Asset<AZ::Data::AssetData> asset)
     {
-        if (m_playRequested && !m_runtime)
+        if (!m_active || !m_playRequested) return;
+        for (auto& source : m_config.sources)
+            if (source.GetId() == asset.GetId()) source = asset;
+        AZ::Data::AssetBus::MultiHandler::BusDisconnect(asset.GetId());
+        TryStartPlayback();
+    }
+    void GrainEmitterComponent::OnAssetError(AZ::Data::Asset<AZ::Data::AssetData>)
+    {
+        if (!m_active || !m_playRequested) return;
+        m_playRequested = false;
+        AZ::Data::AssetBus::MultiHandler::BusDisconnect();
+        AZ_Error("GrainSynthesizer", false, "A grain source asset failed to load");
+    }
+    void GrainEmitterComponent::TryStartPlayback()
+    {
+        if (!m_active || !m_playRequested || m_runtime) return;
+        for (const auto& asset : m_config.sources)
         {
-            for (const auto& asset : m_config.sources)
+            if (asset.IsError())
             {
-                if (!asset.GetId().IsValid() || asset.IsError())
-                {
-                    AZ_Error("GrainSynthesizer", false, "A grain source asset is invalid or failed to load");
-                    m_playRequested = false;
-                    return;
-                }
-                if (!asset.IsReady()) return;
+                OnAssetError(asset);
+                return;
             }
-            m_playRequested = false;
-            if (!CreateRuntime()) return;
-            m_runtime->source.cloud.Start();
+            if (!asset.IsReady()) return;
         }
+        m_playRequested = false;
+        AZ::Data::AssetBus::MultiHandler::BusDisconnect();
+        if (CreateRuntime()) m_runtime->source.cloud.Start();
+    }
+    void GrainEmitterComponent::OnWorldTransformChanged(const AZ::Transform& world)
+    {
         if (m_runtime && m_config.spatial)
         {
-            auto tm = AZ::Transform::CreateIdentity();
-            AZ::TransformBus::EventResult(tm, GetEntityId(), &AZ::TransformBus::Events::GetWorldTM);
-            const auto p = tm.GetTranslation();
+            const auto p = world.GetTranslation();
             ma_sound_set_position(&m_runtime->sound, p.GetX(), p.GetY(), p.GetZ());
         }
     }
@@ -162,6 +206,13 @@ namespace GrainSynthesizer
             runtime->soundReady = true;
             ma_sound_set_min_distance(&runtime->sound, m_config.minDistance);
             ma_sound_set_max_distance(&runtime->sound, m_config.maxDistance);
+            if (m_config.spatial)
+            {
+                auto world = AZ::Transform::CreateIdentity();
+                AZ::TransformBus::EventResult(world, GetEntityId(), &AZ::TransformBus::Events::GetWorldTM);
+                const auto p = world.GetTranslation();
+                ma_sound_set_position(&runtime->sound, p.GetX(), p.GetY(), p.GetZ());
+            }
             if (ma_sound_start(&runtime->sound) != MA_SUCCESS)
                 throw std::runtime_error("Failed to start grain sound");
             m_runtime = AZStd::move(runtime);
